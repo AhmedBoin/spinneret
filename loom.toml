@@ -1,0 +1,28 @@
+# ── Spinneret Loom Server Config ──────────────────────────────────
+# Place this file next to the spinneret-loom binary.
+# The server finds it automatically on startup.
+#
+# Run:
+#   RUST_LOG=info ./spinneret-loom
+#
+# Firewall: open 27531/udp and 27532/udp
+# On first run the server will print its public key:
+#   Loom public key: abcdef0123456789...
+# Share this key with all peers that connect to this loom.
+
+[loom]
+# Primary port — all commands come here
+port1 = 27531
+
+# Secondary port — used only to observe the external port
+# for NAT type detection (Fixed vs Variable)
+port2 = 27532
+
+# Database path (relative to binary location)
+# Only ephemeral data (10 min TTL), stays tiny even under heavy load
+db_path = "./spinneret.db"
+
+# Hex-encoded 32-byte X25519 private key.
+# If omitted, an ephemeral key is generated on each restart.
+# Generate one with:  python3 -c "import os; print(os.urandom(32).hex())"
+# private_key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

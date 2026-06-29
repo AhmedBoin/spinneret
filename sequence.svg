@@ -1,0 +1,314 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 2900" font-family="'JetBrains Mono', 'Fira Code', monospace" shape-rendering="crispEdges" style="background-color: #11111b;">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="115%" height="115%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000" flood-opacity="0.65"/>
+    </filter>
+    <marker id="arrGrn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#a6e3a1" stroke-width="1.6"/>
+    </marker>
+    <marker id="arrTeal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#89dceb" stroke-width="1.6"/>
+    </marker>
+    <marker id="arrYel" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#f9e2af" stroke-width="1.6"/>
+    </marker>
+    <marker id="arrMauve" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#cba6f7" stroke-width="1.6"/>
+    </marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#f38ba8" stroke-width="1.6"/>
+    </marker>
+    <marker id="arrPeach" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M1 1L9 5L1 9" fill="none" stroke="#fab387" stroke-width="1.6"/>
+    </marker>
+    <style>
+      .title  { font-size: 13px; font-weight: bold; fill: #89dceb; }
+      .note   { font-size: 9.5px; fill: #bac2de; }
+      .cmd    { font-size: 10px; fill: #a6e3a1; }
+      .resp   { font-size: 10px; fill: #89dceb; }
+      .fwd    { font-size: 10px; fill: #f9e2af; }
+      .p2p    { font-size: 10px; fill: #cba6f7; }
+      .warn   { font-size: 9.5px; fill: #f38ba8; }
+      .label  { font-size: 11px; fill: #cba6f7; font-weight: bold; }
+      .hdr    { font-size: 12px; font-weight: bold; fill: #cdd6f4; }
+      .rule   { font-size: 9.5px; fill: #cdd6f4; }
+      .subhdr { font-size: 10px; font-weight: bold; fill: #89dceb; }
+      .box    { fill: #181825; stroke: #45475a; stroke-width: 0.8; }
+      .bnd    { fill: #181825; filter: url(#shadow); }
+      .lline  { stroke: #45475a; stroke-width: 1.5; stroke-dasharray: 5 4; }
+    </style>
+  </defs>
+
+  <rect width="960" height="2900" fill="#11111b"/>
+
+  <!-- HEADER -->
+  <rect x="10" y="8" width="940" height="30" rx="4" class="bnd"/>
+  <text x="20" y="27" class="hdr">Spinneret Protocol — Complete Sequence Diagrams (All Commands + All NAT Cases)</text>
+
+  <!-- 1. NAT Detection + Login -->
+  <g id="s1">
+    <rect x="10" y="56" width="940" height="20" rx="3" class="bnd"/>
+    <text x="18" y="70" class="title">1. NAT Detection (0x00 + 0x01) → Login (0x02) — Detect Fixed/Variable NAT, then register</text>
+    <line x1="140" y1="96" x2="140" y2="340" class="lline"/>
+    <line x1="480" y1="96" x2="480" y2="340" class="lline"/>
+    <text x="140" y="94" text-anchor="middle" class="label">Peer</text>
+    <text x="480" y="94" text-anchor="middle" class="label">Loom (dual ports)</text>
+    <text x="18" y="116" class="note">── Phase A: probe both ports to detect NAT type (0x00/0x01) ─────────────</text>
+    <line x1="142" y1="132" x2="476" y2="132" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="310" y="127" text-anchor="middle" class="cmd">0x00 NAT { local_addr } → port1:27531</text>
+    <line x1="142" y1="152" x2="476" y2="152" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="310" y="147" text-anchor="middle" class="cmd">0x01 CONAT { local_addr } → port2:27532</text>
+    <!-- Loom observes both ports, then sends a single response -->
+    <rect x="240" y="164" width="260" height="24" rx="4" fill="#1e1e2e" stroke="#45475a" stroke-width="0.6"/>
+    <text x="370" y="180" text-anchor="middle" class="note">Loom compares observed ports</text>
+    <line x1="478" y1="196" x2="144" y2="196" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="310" y="191" text-anchor="middle" class="resp">0xF2 PeerInfo { global, local, nat=Fixed/Variable }</text>
+    <rect x="60" y="212" width="310" height="30" rx="4" class="box"/>
+    <text x="215" y="226" text-anchor="middle" class="rule">Pa == Pb  →  NatType::Fixed</text>
+    <text x="215" y="238" text-anchor="middle" class="rule">Pa != Pb  →  NatType::Variable</text>
+    <text x="18" y="262" class="note">── Phase B: send login with full PeerInfo (0x02) ──────────────────</text>
+    <line x1="142" y1="278" x2="476" y2="278" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="310" y="273" text-anchor="middle" class="cmd">0x02 Login { PeerInfo } (includes detected nat)</text>
+    <line x1="478" y1="298" x2="144" y2="298" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="310" y="293" text-anchor="middle" class="resp">0xF0 Ok  |  0xF1 Err(0x0C NOT_REG)</text>
+    <rect x="60" y="314" width="310" height="16" rx="3" class="box"/>
+    <text x="215" y="325" text-anchor="middle" class="rule">Login updates global addr from packet source</text>
+  </g>
+
+  <!-- 2. Tangle -->
+  <g id="s2">
+    <rect x="10" y="360" width="940" height="20" rx="3" class="bnd"/>
+    <text x="18" y="374" class="title">2. Tangle — Keepalive (request‑response, 0x03) resets 10‑minute TTL</text>
+    <line x1="140" y1="400" x2="140" y2="480" class="lline"/>
+    <line x1="480" y1="400" x2="480" y2="480" class="lline"/>
+    <text x="140" y="398" text-anchor="middle" class="label">Peer</text>
+    <text x="480" y="398" text-anchor="middle" class="label">Loom</text>
+    <line x1="142" y1="420" x2="476" y2="420" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="310" y="415" text-anchor="middle" class="cmd">0x03 Tangle</text>
+    <line x1="478" y1="440" x2="144" y2="440" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="310" y="435" text-anchor="middle" class="resp">0xF0 Ok  |  0xF1 Err(0x0C NOT_REG)</text>
+    <text x="310" y="470" text-anchor="middle" class="rule">Send every &lt; 60s; GC every 60s removes expired peers</text>
+  </g>
+
+  <!-- 3. Filter Management -->
+  <g id="s3">
+    <rect x="10" y="500" width="940" height="20" rx="3" class="bnd"/>
+    <text x="18" y="514" class="title">3. Filter Management — 0x04 SetFilter, 0x05 FilterInfo, 0x06 AddPeerFilter, 0x08 RemovePeerFilter</text>
+    <line x1="140" y1="540" x2="140" y2="820" class="lline"/>
+    <line x1="480" y1="540" x2="480" y2="820" class="lline"/>
+    <text x="140" y="538" text-anchor="middle" class="label">Peer</text>
+    <text x="480" y="538" text-anchor="middle" class="label">Loom</text>
+    <text x="18" y="560" class="note">── 0x04 SetFilter ───────────────────────────────────────────</text>
+    <line x1="142" y1="574" x2="476" y2="574" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="310" y="569" text-anchor="middle" class="cmd">0x04 SetFilter { mode: Off | Whitelist | Blacklist }</text>
+    <line x1="478" y1="594" x2="144" y2="594" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="310" y="589" text-anchor="middle" class="resp">0xF0 Ok  |  0xF1 Err(0x0C NOT_REG | 0x03 ALREADY_FILTER)</text>
+    <text x="18" y="618" class="note">── 0x05 FilterInfo ─────────────────────────────────────────</text>
+    <line x1="142" y1="632" x2="476" y2="632" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="310" y="627" text-anchor="middle" class="cmd">0x05 FilterInfo</text>
+    <line x1="478" y1="652" x2="144" y2="652" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="310" y="647" text-anchor="middle" class="resp">0xF4 FilterInfo { mode, count } | 0xF1 Err(0x05 NO_FILTER)</text>
+    <text x="18" y="676" class="note">── 0x06 AddPeerFilter ──────────────────────────────────────</text>
+    <line x1="142" y1="690" x2="476" y2="690" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="310" y="685" text-anchor="middle" class="cmd">0x06 AddPeerFilter { key[32] }</text>
+    <line x1="478" y1="710" x2="144" y2="710" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="310" y="705" text-anchor="middle" class="resp">0xF0 Ok | 0xF1 Err(0x03 ALREADY_FILTER | 0x05 NO_FILTER)</text>
+    <text x="18" y="734" class="note">── 0x08 RemovePeerFilter ───────────────────────────────────</text>
+    <line x1="142" y1="748" x2="476" y2="748" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="310" y="743" text-anchor="middle" class="cmd">0x08 RemovePeerFilter { key[32] }  (0x07 is reserved)</text>
+    <line x1="478" y1="768" x2="144" y2="768" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="310" y="763" text-anchor="middle" class="resp">0xF0 Ok | 0xF1 Err(0x04 NOT_FILTER | 0x05 NO_FILTER)</text>
+    <rect x="60" y="784" width="480" height="30" rx="4" class="box"/>
+    <text x="300" y="798" text-anchor="middle" class="rule">Whitelist: only listed peers can Spin us.  Blacklist: listed peers cannot.</text>
+    <text x="300" y="810" text-anchor="middle" class="rule">Filters are persistent (no TTL).  Off by default.</text>
+  </g>
+
+  <!-- 4. Network Management -->
+  <g id="s4">
+    <rect x="10" y="840" width="940" height="20" rx="3" class="bnd"/>
+    <text x="18" y="854" class="title">4. Network Management — 0x09 RegisterNetwork, 0x0A NetworkInfo, 0x0C TangleNetwork, 0x0D JoinNetwork, 0x0B GetNetPeer</text>
+    <line x1="100" y1="880" x2="100" y2="1360" class="lline"/>
+    <line x1="400" y1="880" x2="400" y2="1360" class="lline"/>
+    <line x1="760" y1="880" x2="760" y2="1360" class="lline"/>
+    <text x="100" y="878" text-anchor="middle" class="label">Peer A</text>
+    <text x="400" y="878" text-anchor="middle" class="label">Loom</text>
+    <text x="760" y="878" text-anchor="middle" class="label">Peer B (host)</text>
+    <text x="18" y="902" class="note">── 0x09 RegisterNetwork (public) ──────────────────────────</text>
+    <line x1="102" y1="918" x2="396" y2="918" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="250" y="913" text-anchor="middle" class="cmd">0x09 RegisterNetwork { id, kind=Public }</text>
+    <line x1="398" y1="938" x2="104" y2="938" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="250" y="933" text-anchor="middle" class="resp">0xF0 Ok | 0xF1 Err(0x08 NET_EXISTS)</text>
+    <text x="18" y="962" class="note">── 0x09 RegisterNetwork (private) ─────────────────────────</text>
+    <line x1="102" y1="978" x2="396" y2="978" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="250" y="973" text-anchor="middle" class="cmd">0x09 RegisterNetwork { id, kind=Private } (creator becomes host)</text>
+    <line x1="398" y1="998" x2="104" y2="998" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="250" y="993" text-anchor="middle" class="resp">0xF0 Ok | 0xF1 Err(0x08 NET_EXISTS)</text>
+    <text x="18" y="1022" class="note">── 0x0A NetworkInfo ────────────────────────────────────────</text>
+    <line x1="102" y1="1038" x2="396" y2="1038" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="250" y="1033" text-anchor="middle" class="cmd">0x0A NetworkInfo { id }</text>
+    <line x1="398" y1="1058" x2="104" y2="1058" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="250" y="1053" text-anchor="middle" class="resp">0xF3 NetworkInfo { id, kind, host_pubkey?, member_count }</text>
+    <text x="18" y="1082" class="note">── 0x0C TangleNetwork (request‑response) ──────────────────</text>
+    <line x1="102" y1="1098" x2="396" y2="1098" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="250" y="1093" text-anchor="middle" class="cmd">0x0C TangleNetwork { id }</text>
+    <line x1="398" y1="1118" x2="104" y2="1118" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="250" y="1113" text-anchor="middle" class="resp">0xF0 Ok | 0xF1 Err(0x07 NOT_FOUND | 0x09 NOT_IN_NET)</text>
+    <text x="18" y="1142" class="note">── 0x0D JoinNetwork (public) ─────────────────────────────</text>
+    <line x1="102" y1="1158" x2="396" y2="1158" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="250" y="1153" text-anchor="middle" class="cmd">0x0D JoinNetwork { id }</text>
+    <line x1="398" y1="1178" x2="104" y2="1178" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="250" y="1173" text-anchor="middle" class="resp">0xF0 Ok (added) | 0xF1 Err(0x07 NOT_FOUND)</text>
+    <text x="18" y="1202" class="note">── 0x0D JoinNetwork (private) ─────────────────────────────</text>
+    <line x1="102" y1="1218" x2="396" y2="1218" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="250" y="1213" text-anchor="middle" class="cmd">0x0D JoinNetwork { id }</text>
+    <line x1="398" y1="1238" x2="758" y2="1238" stroke="#f9e2af" stroke-width="1.4" marker-end="url(#arrYel)"/>
+    <text x="580" y="1233" text-anchor="middle" class="fwd">0xF6 AskHostJoin { net_id, joiner PeerInfo }  →  host B</text>
+    <line x1="758" y1="1258" x2="402" y2="1258" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="580" y="1253" text-anchor="middle" class="cmd">0xF7 HostJoinResp { net_id, joiner_key, approved } (host → loom)</text>
+    <line x1="398" y1="1278" x2="104" y2="1278" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="250" y="1273" text-anchor="middle" class="resp">0xF0 Ok  |  0xF1 Err(0x0A JOIN_REFUSED | 0x0B HOST_TIMEOUT)</text>
+    <text x="18" y="1302" class="note">── 0x0B GetNetPeer ─────────────────────────────────────────</text>
+    <line x1="102" y1="1318" x2="396" y2="1318" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="250" y="1313" text-anchor="middle" class="cmd">0x0B GetNetPeer { net_id, idx }</text>
+    <line x1="398" y1="1338" x2="104" y2="1338" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="250" y="1333" text-anchor="middle" class="resp">0xF2 PeerInfo { member } | 0xF1 Err(0x01 NOT_FOUND)</text>
+    <rect x="60" y="1354" width="500" height="22" rx="4" class="box"/>
+    <text x="310" y="1369" text-anchor="middle" class="rule">Public: auto‑join.  Private: host must approve (5s timeout).</text>
+  </g>
+
+  <!-- 5. Spin → Silk -->
+  <g id="s5">
+    <rect x="10" y="1380" width="940" height="20" rx="3" class="bnd"/>
+    <text x="18" y="1394" class="title">5. Spin → Silk — Peer discovery + NAT hole punching + direct connection (0x0E)</text>
+    <line x1="100" y1="1420" x2="100" y2="1980" class="lline"/>
+    <line x1="400" y1="1420" x2="400" y2="1980" class="lline"/>
+    <line x1="760" y1="1420" x2="760" y2="1980" class="lline"/>
+    <text x="100" y="1418" text-anchor="middle" class="label">Peer A (caller)</text>
+    <text x="400" y="1418" text-anchor="middle" class="label">Loom</text>
+    <text x="760" y="1418" text-anchor="middle" class="label">Peer B (target)</text>
+
+    <text x="18" y="1442" class="note">── Phase 1: A calls spin(B_pubkey) ──────────────────────</text>
+    <line x1="102" y1="1458" x2="396" y2="1458" stroke="#a6e3a1" stroke-width="1.4" marker-end="url(#arrGrn)"/>
+    <text x="250" y="1453" text-anchor="middle" class="cmd">0x0E Spin { target_key = pubkey(B) }</text>
+    <rect x="240" y="1470" width="210" height="20" rx="3" fill="#1e1e2e" stroke="#f38ba8" stroke-width="0.6"/>
+    <text x="345" y="1484" text-anchor="middle" class="warn">Loom checks B's filter + reg status</text>
+    <line x1="398" y1="1502" x2="104" y2="1502" stroke="#f38ba8" stroke-width="1.4" marker-end="url(#arrRed)"/>
+    <text x="250" y="1497" text-anchor="middle" class="warn">0xF1 Err(0x06 BLOCKED | 0x0C NOT_REG | 0x01 NOT_FOUND)</text>
+    <line x1="398" y1="1524" x2="758" y2="1524" stroke="#f9e2af" stroke-width="1.4" marker-end="url(#arrYel)"/>
+    <text x="580" y="1519" text-anchor="middle" class="fwd">0xF5 SpinNotify { caller PeerInfo(A) }  →  B</text>
+    <line x1="398" y1="1544" x2="104" y2="1544" stroke="#89dceb" stroke-width="1.4" marker-end="url(#arrTeal)"/>
+    <text x="250" y="1539" text-anchor="middle" class="resp">0xF2 PeerInfo { target PeerInfo(B) }  →  A</text>
+
+    <text x="18" y="1568" class="note">── Phase 2: B calls accept(caller) → sends Echo to A directly ──</text>
+    <line x1="758" y1="1586" x2="102" y2="1586" stroke="#cba6f7" stroke-width="1.4" marker-end="url(#arrMauve)"/>
+    <text x="430" y="1581" text-anchor="middle" class="p2p">0xEB Entangle (Echo — B sends via direct UDP to A)</text>
+    <rect x="240" y="1600" width="420" height="20" rx="3" fill="#1e1e2e" stroke="#a6e3a1" stroke-width="0.6"/>
+    <text x="450" y="1614" text-anchor="middle" class="note">Both A and B now call make_silk() with each other's PeerInfo</text>
+
+    <text x="18" y="1640" class="note">── Phase 3: Simultaneous hole punch (strategy depends on NAT types) ───</text>
+    <line x1="102" y1="1660" x2="758" y2="1660" stroke="#cba6f7" stroke-width="1.3" marker-end="url(#arrMauve)" marker-start="url(#arrMauve)"/>
+    <text x="430" y="1655" text-anchor="middle" class="p2p">0xEB Entangle every 50ms (both sides simultaneously to each other's addr)</text>
+    <line x1="102" y1="1682" x2="758" y2="1682" stroke="#cba6f7" stroke-width="1.3" marker-end="url(#arrMauve)" marker-start="url(#arrMauve)"/>
+    <text x="430" y="1677" text-anchor="middle" class="p2p">0xEC EntangleAck — first reply received → connection established</text>
+
+    <text x="18" y="1706" class="note">── Phase 3b: Post‑punch blast (3 seconds) ─────────────────</text>
+    <line x1="102" y1="1722" x2="758" y2="1722" stroke="#cba6f7" stroke-width="1.3" marker-end="url(#arrMauve)" marker-start="url(#arrMauve)"/>
+    <text x="430" y="1717" text-anchor="middle" class="p2p">0xEB every 50ms for 3s to ensure remote receives at least one packet</text>
+    <rect x="300" y="1742" width="260" height="20" rx="4" fill="#1e1e2e" stroke="#a6e3a1" stroke-width="1"/>
+    <text x="430" y="1756" text-anchor="middle" class="note">✓ Silk established (loom no longer involved)</text>
+
+    <text x="18" y="1782" class="note">── Phase 4: Application data (direct peer‑to‑peer, no loom) ──────────</text>
+    <line x1="102" y1="1800" x2="758" y2="1800" stroke="#cba6f7" stroke-width="1.6" marker-end="url(#arrMauve)"/>
+    <text x="430" y="1795" text-anchor="middle" class="p2p">0xDA SilkData { len | payload }  →  A → B</text>
+    <line x1="758" y1="1820" x2="102" y2="1820" stroke="#cba6f7" stroke-width="1.6" marker-end="url(#arrMauve)"/>
+    <text x="430" y="1815" text-anchor="middle" class="p2p">0xDA SilkData { len | payload }  →  B → A</text>
+    <rect x="240" y="1838" width="380" height="40" rx="3" fill="#1e1e2e" stroke="#fab387" stroke-width="0.6"/>
+    <text x="430" y="1854" text-anchor="middle" class="cmd">0x03 Tangle every &lt; 60s to stay registered (for future Spins)</text>
+    <text x="430" y="1870" text-anchor="middle" class="rule">Silk idle ≥ 30s → send 0xEB; remote replies 0xEC (idle keepalive)</text>
+    <rect x="60" y="1896" width="340" height="30" rx="4" class="box"/>
+    <text x="230" y="1910" text-anchor="middle" class="rule">Hole punch timeout: 30 seconds</text>
+    <text x="230" y="1922" text-anchor="middle" class="rule">Post‑punch blast: 3 seconds</text>
+    <rect x="420" y="1896" width="500" height="80" rx="4" class="box"/>
+    <text x="670" y="1912" text-anchor="middle" class="subhdr">Peer‑to‑Peer Wire Types (raw UDP)</text>
+    <text x="670" y="1928" text-anchor="middle" class="rule">0xEB = Entangle  (hole punch / keepalive)</text>
+    <text x="670" y="1942" text-anchor="middle" class="rule">0xEC = EntangleAck  (acknowledgment)</text>
+    <text x="670" y="1956" text-anchor="middle" class="rule">0xDA | len(2) | payload = SilkData (application data)</text>
+  </g>
+
+  <!-- 6. NAT Traversal Strategies -->
+  <g id="s6">
+    <rect x="10" y="2000" width="940" height="20" rx="3" class="bnd"/>
+    <text x="18" y="2014" class="title">6. NAT Traversal Strategies — All four NAT‑type combinations + same‑router optimisation</text>
+    <rect x="40" y="2040" width="880" height="76" rx="4" class="box"/>
+    <text x="480" y="2060" text-anchor="middle" class="subhdr">Same‑Router Optimisation (both Fixed NAT, same global IP)</text>
+    <line x1="140" y1="2074" x2="140" y2="2108" class="lline"/>
+    <line x1="820" y1="2074" x2="820" y2="2108" class="lline"/>
+    <text x="140" y="2072" text-anchor="middle" class="label">Peer A</text>
+    <text x="820" y="2072" text-anchor="middle" class="label">Peer B</text>
+    <line x1="142" y1="2092" x2="818" y2="2092" stroke="#cba6f7" stroke-width="1.3" marker-end="url(#arrMauve)" marker-start="url(#arrMauve)"/>
+    <text x="480" y="2087" text-anchor="middle" class="p2p">Try LAN address first → 0xEB / 0xEC  (fall back to global if LAN fails)</text>
+    <text x="480" y="2108" text-anchor="middle" class="rule">Timeout: 30 seconds</text>
+
+    <rect x="40" y="2126" width="880" height="68" rx="4" class="box"/>
+    <text x="480" y="2146" text-anchor="middle" class="subhdr">Fixed NAT ↔ Fixed NAT</text>
+    <line x1="140" y1="2158" x2="140" y2="2186" class="lline"/>
+    <line x1="820" y1="2158" x2="820" y2="2186" class="lline"/>
+    <text x="140" y="2156" text-anchor="middle" class="label">Peer A (Fixed)</text>
+    <text x="820" y="2156" text-anchor="middle" class="label">Peer B (Fixed)</text>
+    <line x1="142" y1="2174" x2="818" y2="2174" stroke="#cba6f7" stroke-width="1.3" marker-end="url(#arrMauve)" marker-start="url(#arrMauve)"/>
+    <text x="480" y="2169" text-anchor="middle" class="p2p">Both send 0xEB to each other's IP:port every 50ms until reply received</text>
+    <text x="480" y="2188" text-anchor="middle" class="rule">Timeout: 30s  |  Post‑punch blast: 3s</text>
+
+    <rect x="40" y="2202" width="880" height="70" rx="4" class="box"/>
+    <text x="480" y="2222" text-anchor="middle" class="subhdr">Fixed NAT ↔ Variable NAT</text>
+    <line x1="140" y1="2234" x2="140" y2="2264" class="lline"/>
+    <line x1="820" y1="2234" x2="820" y2="2264" class="lline"/>
+    <text x="140" y="2232" text-anchor="middle" class="label">Peer A (Fixed)</text>
+    <text x="820" y="2232" text-anchor="middle" class="label">Peer B (Variable)</text>
+    <line x1="142" y1="2250" x2="818" y2="2250" stroke="#cba6f7" stroke-width="1.3" marker-end="url(#arrMauve)"/>
+    <text x="480" y="2245" text-anchor="middle" class="p2p">Fixed sprays 0xEB to 101 ports (target ±50). Variable opens 100 sockets, sprays from all.</text>
+    <text x="480" y="2266" text-anchor="middle" class="rule">Variable also sends echo to Fixed's exact port.  Timeout: 30s</text>
+
+    <rect x="40" y="2280" width="880" height="66" rx="4" class="box"/>
+    <text x="480" y="2300" text-anchor="middle" class="subhdr">Variable NAT ↔ Fixed NAT</text>
+    <line x1="140" y1="2312" x2="140" y2="2338" class="lline"/>
+    <line x1="820" y1="2312" x2="820" y2="2338" class="lline"/>
+    <text x="140" y="2310" text-anchor="middle" class="label">Peer A (Variable)</text>
+    <text x="820" y="2310" text-anchor="middle" class="label">Peer B (Fixed)</text>
+    <line x1="142" y1="2326" x2="818" y2="2326" stroke="#cba6f7" stroke-width="1.3" marker-end="url(#arrMauve)"/>
+    <text x="480" y="2321" text-anchor="middle" class="p2p">Variable opens 100 sockets, sprays 0xEB from all to Fixed's single IP:port</text>
+    <text x="480" y="2340" text-anchor="middle" class="rule">Timeout: 30s</text>
+
+    <rect x="40" y="2354" width="880" height="70" rx="4" class="box"/>
+    <text x="480" y="2374" text-anchor="middle" class="subhdr">Variable NAT ↔ Variable NAT</text>
+    <line x1="140" y1="2386" x2="140" y2="2416" class="lline"/>
+    <line x1="820" y1="2386" x2="820" y2="2416" class="lline"/>
+    <text x="140" y="2384" text-anchor="middle" class="label">Peer A (Variable)</text>
+    <text x="820" y="2384" text-anchor="middle" class="label">Peer B (Variable)</text>
+    <line x1="142" y1="2402" x2="818" y2="2402" stroke="#cba6f7" stroke-width="1.3" marker-end="url(#arrMauve)" marker-start="url(#arrMauve)"/>
+    <text x="480" y="2397" text-anchor="middle" class="p2p">Both open 100 extra sockets, each sprays 0xEB to 101 ports (±50) → 10,100 combos/side</text>
+    <text x="480" y="2418" text-anchor="middle" class="rule">Timeout: 30s</text>
+  </g>
+
+  <!-- LEGEND -->
+  <g id="legend">
+    <rect x="10" y="2440" width="940" height="170" rx="4" fill="#181825" stroke="#313244" stroke-width="0.5" filter="url(#shadow)"/>
+    <text x="18" y="2462" class="label">Legend:</text>
+    <line x1="68" y1="2478" x2="110" y2="2478" stroke="#a6e3a1" stroke-width="1.6" marker-end="url(#arrGrn)"/>
+    <text x="118" y="2482" class="cmd">Command (peer → loom)</text>
+    <line x1="348" y1="2478" x2="390" y2="2478" stroke="#89dceb" stroke-width="1.6" marker-end="url(#arrTeal)"/>
+    <text x="398" y="2482" class="resp">Response (loom → peer)</text>
+    <line x1="588" y1="2478" x2="630" y2="2478" stroke="#f9e2af" stroke-width="1.6" marker-end="url(#arrYel)"/>
+    <text x="638" y="2482" class="fwd">Forwarded (loom → peer)</text>
+    <line x1="68" y1="2506" x2="110" y2="2506" stroke="#cba6f7" stroke-width="1.6" marker-end="url(#arrMauve)"/>
+    <text x="118" y="2510" class="p2p">Silk P2P (peer ↔ peer, no loom)</text>
+    <line x1="348" y1="2506" x2="390" y2="2506" stroke="#fab387" stroke-width="1.6" stroke-dasharray="5 2" marker-end="url(#arrPeach)"/>
+    <text x="398" y="2510" class="cmd">Fire‑and‑forget (no reply)</text>
+    <line x1="588" y1="2506" x2="630" y2="2506" stroke="#f38ba8" stroke-width="1.6" marker-end="url(#arrRed)"/>
+    <text x="638" y="2510" class="warn">Error / blocked</text>
+    <text x="18" y="2536" class="note">Wire format (encrypted): sender_pubkey[32] | nonce[12] | ChaCha20‑Poly1305_ciphertext[..+16]</text>
+    <text x="18" y="2552" class="note">Plaintext (after decryption): timestamp[8] | validity_secs[1] (1..10) | CMD[1] | payload[..]</text>
+    <text x="18" y="2568" class="note">Key agreement: X25519(receiver_priv, sender_pub) → shared_secret → ChaCha20‑Poly1305(shared_secret, nonce, plaintext)</text>
+    <text x="18" y="2584" class="note">Replay protection: (now ‑ timestamp) &gt; validity_secs → packet rejected. Max validity: 10 seconds.</text>
+  </g>
+</svg>

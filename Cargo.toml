@@ -1,0 +1,29 @@
+[package]
+name = "spinneret"
+version = "1.0.0"
+edition = "2021"
+description = "UDP P2P networking with NAT traversal — Spinneret protocol"
+license = "MIT"
+authors = ["Mohamed A.Taha <Ahmed.Boin@gmail.com>"]
+
+[lib]
+name = "spinneret"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "spinneret-loom"
+path = "src/bin/loom.rs"
+
+[dependencies]
+tokio = { version = "1.38", features = ["full"] }
+sled = "0.34.7"
+serde = { version = "1.0", features = ["derive"] }
+bincode = "1.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+toml = "1.1.2"
+rand = "0.10.1"
+thiserror = "2.0.18"
+anyhow = "1.0.103"
+ring = "0.17"
+curve25519-dalek = "4.1.3"
