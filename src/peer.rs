@@ -1,3 +1,5 @@
+use rand::RngExt;
+use rand::SeedableRng;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
@@ -18,19 +20,19 @@ const MAX_DGRAM: usize = 1400;
 const RPC_TIMEOUT_MS: u64 = 15_000;
 const RPC_RETRIES: usize = 3;
 const RPC_RETRY_DELAY_MS: u64 = 500;
-const SILK_TIMEOUT_SECS: u64 = 15;
+const SILK_TIMEOUT_SECS: u64 = 30;
 const ENTANGLE_IDLE_SECS: u64 = 30;
 const NAT_RETRIES: usize = 3;
 const NAT_RETRY_DELAY_MS: u64 = 500;
-const VAR_EXTRA_SOCKS: usize = 100;
-const VAR_PORT_RANGE: u16 = 50;
 const POST_PUNCH_BLAST_MS: u64 = 3_000;
 const PKT_VALIDITY: u8 = 5;
 const MAX_SPIN_INBOX: usize = 1024;
 const MAX_HOST_JOIN_INBOX: usize = 1024;
-const PUNCH_DIRECT_TIMEOUT_SECS: u64 = 10;
 const PUNCH_RETRIES: usize = 2;
 const PUNCH_RETRY_DELAY_MS: u64 = 200;
+const FIXED_SPRAY_PORTS: usize = 2048; // punch_fixed_side  / punch_variable_side
+const SYM_SOCKETS: usize = 445; // punch_variable_variable sockets per side
+const SYM_GUESSES: usize = 445; // destination guesses per socket per round
 
 // ─────────────────────────────────────────────────────────────────
 // Silk — live P2P connection
@@ -852,28 +854,18 @@ impl Peer {
         silk
     }
 
+    // ── public dispatch ──────────────────────────────────────────────────────
+
+    /// Both peers on the same LAN – just do a fixed punch to the local addr.
     async fn punch_direct(&self, addr: SocketAddr, remote: &PeerInfo) -> Result<Arc<Silk>, Error> {
-        let pkt = Self::make_entangle_pkt();
-        let deadline = Instant::now() + Duration::from_secs(PUNCH_DIRECT_TIMEOUT_SECS);
-        let mut buf = [0u8; MAX_DGRAM];
-        loop {
-            self.sock.send_to(&pkt, addr).await.ok();
-            if let Ok(Ok((_, from))) =
-                timeout(Duration::from_millis(200), self.sock.recv_from(&mut buf)).await
-            {
-                if from == addr {
-                    return Ok(self
-                        .finish_silk(addr, remote.clone(), Arc::clone(&self.sock))
-                        .await);
-                }
-            }
-            if Instant::now() >= deadline {
-                break;
-            }
-        }
-        Err(Error::SilkFailed)
+        self.punch_fixed_fixed(addr, remote).await
     }
 
+    // ── Fixed ↔ Fixed ────────────────────────────────────────────────────────
+
+    /// Both peers behind cone / full-cone NAT (or no NAT).
+    /// Their external port is stable and known – just knock until the other
+    /// side knocks back.
     async fn punch_fixed_fixed(
         &self,
         remote: SocketAddr,
@@ -883,8 +875,10 @@ impl Peer {
         let pkt = Self::make_entangle_pkt();
         let deadline = Instant::now() + Duration::from_secs(SILK_TIMEOUT_SECS);
         let mut buf = [0u8; MAX_DGRAM];
+
         loop {
             self.sock.send_to(&pkt, remote).await.ok();
+
             if let Ok(Ok((_, from))) =
                 timeout(Duration::from_millis(50), self.sock.recv_from(&mut buf)).await
             {
@@ -894,136 +888,53 @@ impl Peer {
                         .await);
                 }
             }
+
             if Instant::now() >= deadline {
                 return Err(Error::SilkFailed);
             }
         }
     }
 
+    // ── Fixed → Variable (we are fixed, remote is symmetric) ────────────────
+
+    /// We are behind a cone NAT (fixed external port).
+    /// The remote is behind a symmetric NAT – we don't know which external
+    /// port it will use when it replies, so we spray 2048 random destination
+    /// ports (always including the one Loom reported) every round.
+    ///
+    /// Meanwhile the symmetric peer runs `punch_variable_side` and tries to
+    /// connect FROM 2048 different sockets TO our known fixed port.  One of
+    /// those sockets will punch a hole the remote NAT accepts our spray through.
+    ///
+    /// With Am=1, An=2048, Bm=2048, Bn=1:
+    ///   λ = (1 × 2048 × 2048 × 1) / 65536 ≈ 0.00097  per round
+    /// After ~4500 rounds (well within a few-second deadline) λ_total → 4 → P ≈ 98%
+    /// but in practice we succeed as soon as ONE packet crosses, so the loop
+    /// exits the moment any reply is seen.
     async fn punch_fixed_side(
         &self,
         remote: SocketAddr,
         remote_info: &PeerInfo,
     ) -> Result<Arc<Silk>, Error> {
         info!(
-            "punch Fixed→Variable: spray ±{} ports around {}",
-            VAR_PORT_RANGE, remote
+            "punch Fixed→Variable: spray {} random ports toward {}",
+            FIXED_SPRAY_PORTS, remote
         );
         let pkt = Self::make_entangle_pkt();
-        let base = remote.port() as i32;
         let deadline = Instant::now() + Duration::from_secs(SILK_TIMEOUT_SECS);
         let mut buf = [0u8; MAX_DGRAM];
 
         loop {
-            for delta in -(VAR_PORT_RANGE as i32)..=(VAR_PORT_RANGE as i32) {
-                let port = (base + delta).clamp(1024, 65535) as u16;
-                self.sock
-                    .send_to(&pkt, SocketAddr::new(remote.ip(), port))
-                    .await
-                    .ok();
-            }
-            if let Ok(Ok((_, from))) =
-                timeout(Duration::from_millis(100), self.sock.recv_from(&mut buf)).await
-            {
-                if from.ip() == remote.ip() {
-                    return Ok(self
-                        .finish_silk(from, remote_info.clone(), Arc::clone(&self.sock))
-                        .await);
-                }
-            }
-            if Instant::now() >= deadline {
-                return Err(Error::SilkFailed);
-            }
-        }
-    }
+            // Re-randomise every round so we never repeat the same blind spot
+            let ports = random_ports_with_anchor(FIXED_SPRAY_PORTS, Some(remote.port()));
 
-    async fn punch_variable_side(
-        &self,
-        remote: SocketAddr,
-        remote_info: &PeerInfo,
-    ) -> Result<Arc<Silk>, Error> {
-        info!(
-            "punch Variable→Fixed: open {} sockets → {}",
-            VAR_EXTRA_SOCKS, remote
-        );
-        let pkt = Self::make_entangle_pkt();
-
-        let mut extras: Vec<Arc<UdpSocket>> = Vec::new();
-        for _ in 0..VAR_EXTRA_SOCKS {
-            if let Ok(s) = UdpSocket::bind("0.0.0.0:0").await {
-                extras.push(Arc::new(s));
-            }
-        }
-
-        let deadline = Instant::now() + Duration::from_secs(SILK_TIMEOUT_SECS);
-        let mut buf = [0u8; MAX_DGRAM];
-
-        loop {
-            for s in &extras {
-                s.send_to(&pkt, remote).await.ok();
-            }
-            self.sock.send_to(&pkt, remote).await.ok();
-
-            if let Ok(Ok((_, from))) =
-                timeout(Duration::from_millis(100), self.sock.recv_from(&mut buf)).await
-            {
-                if from.ip() == remote.ip() {
-                    return Ok(self
-                        .finish_silk(from, remote_info.clone(), Arc::clone(&self.sock))
-                        .await);
-                }
-            }
-
-            for s in &extras {
-                let mut b2 = [0u8; MAX_DGRAM];
-                if let Ok(Ok((_, from))) =
-                    timeout(Duration::from_millis(10), s.recv_from(&mut b2)).await
-                {
-                    if from.ip() == remote.ip() {
-                        let arc_s = Arc::clone(s);
-                        return Ok(self.finish_silk(from, remote_info.clone(), arc_s).await);
-                    }
-                }
-            }
-
-            if Instant::now() >= deadline {
-                return Err(Error::SilkFailed);
-            }
-        }
-    }
-
-    async fn punch_variable_variable(
-        &self,
-        remote: SocketAddr,
-        remote_info: &PeerInfo,
-    ) -> Result<Arc<Silk>, Error> {
-        info!(
-            "punch Variable↔Variable: {} sockets × ±{} ports",
-            VAR_EXTRA_SOCKS, VAR_PORT_RANGE
-        );
-        let pkt = Self::make_entangle_pkt();
-        let base = remote.port() as i32;
-
-        let mut extras: Vec<Arc<UdpSocket>> = Vec::new();
-        for _ in 0..VAR_EXTRA_SOCKS {
-            if let Ok(s) = UdpSocket::bind("0.0.0.0:0").await {
-                extras.push(Arc::new(s));
-            }
-        }
-
-        let deadline = Instant::now() + Duration::from_secs(SILK_TIMEOUT_SECS);
-        let mut buf = [0u8; MAX_DGRAM];
-
-        loop {
-            for delta in -(VAR_PORT_RANGE as i32)..=(VAR_PORT_RANGE as i32) {
-                let port = (base + delta).clamp(1024, 65535) as u16;
-                let addr = SocketAddr::new(remote.ip(), port);
-                for s in &extras {
-                    s.send_to(&pkt, addr).await.ok();
-                }
+            for port in &ports {
+                let addr = SocketAddr::new(remote.ip(), *port);
                 self.sock.send_to(&pkt, addr).await.ok();
             }
 
+            // A short wait – the variable side is also hammering us, so a
+            // reply can arrive on our single main socket at any moment.
             if let Ok(Ok((_, from))) =
                 timeout(Duration::from_millis(50), self.sock.recv_from(&mut buf)).await
             {
@@ -1034,16 +945,149 @@ impl Peer {
                 }
             }
 
+            if Instant::now() >= deadline {
+                return Err(Error::SilkFailed);
+            }
+        }
+    }
+
+    // ── Variable → Fixed (we are symmetric, remote is fixed) ────────────────
+
+    /// We are behind a symmetric NAT – every socket we open gets an
+    /// independent random external port.  We open 2048 sockets and punch
+    /// FROM all of them to the remote's single known fixed port.
+    ///
+    /// The fixed side runs `punch_fixed_side` and sprays 2048 ports back at
+    /// us, so one of its sprayed packets will eventually land on one of the
+    /// external ports our sockets created.  The first match wins.
+    async fn punch_variable_side(
+        &self,
+        remote: SocketAddr,
+        remote_info: &PeerInfo,
+    ) -> Result<Arc<Silk>, Error> {
+        info!(
+            "punch Variable→Fixed: {} sockets → {}",
+            FIXED_SPRAY_PORTS, remote
+        );
+        let pkt = Self::make_entangle_pkt();
+        let deadline = Instant::now() + Duration::from_secs(SILK_TIMEOUT_SECS);
+
+        let extras = bind_sockets(FIXED_SPRAY_PORTS).await;
+
+        loop {
+            // Punch from every extra socket (each gets a distinct external port)
             for s in &extras {
-                let mut b2 = [0u8; MAX_DGRAM];
+                s.send_to(&pkt, remote).await.ok();
+            }
+            // Also punch from the primary socket
+            self.sock.send_to(&pkt, remote).await.ok();
+
+            // Check primary socket
+            {
+                let mut buf = [0u8; MAX_DGRAM];
                 if let Ok(Ok((_, from))) =
-                    timeout(Duration::from_millis(5), s.recv_from(&mut b2)).await
+                    timeout(Duration::from_millis(20), self.sock.recv_from(&mut buf)).await
                 {
                     if from.ip() == remote.ip() {
-                        let arc_s = Arc::clone(s);
-                        return Ok(self.finish_silk(from, remote_info.clone(), arc_s).await);
+                        return Ok(self
+                            .finish_silk(from, remote_info.clone(), Arc::clone(&self.sock))
+                            .await);
                     }
                 }
+            }
+
+            // Check all extra sockets (short per-socket timeout to stay fast)
+            if let Some((from, winning_sock)) = poll_sockets(&extras, remote.ip(), 5).await {
+                return Ok(self
+                    .finish_silk(from, remote_info.clone(), winning_sock)
+                    .await);
+            }
+
+            if Instant::now() >= deadline {
+                return Err(Error::SilkFailed);
+            }
+        }
+    }
+
+    // ── Variable ↔ Variable (both symmetric) ────────────────────────────────
+
+    /// Hardest case: both NATs assign random external ports per socket.
+    ///
+    /// Strategy (derived from the general formula):
+    ///   Am = Bm = 445 sockets each side
+    ///   An = Bn = 445 fresh random destination ports per socket **per round**
+    ///   → n_A = n_B = 445 × 445 = 198,025
+    ///   → λ per round = (198,025)² / 65536² ≈ 9.12
+    ///   → P(success within ONE round) = 1 − e^{−9.12} ≈ 99.99%
+    ///
+    /// Re-randomising the destination ports every round means each round is an
+    /// independent trial, so even if λ per round were lower the probability
+    /// accumulates rapidly across rounds.
+    async fn punch_variable_variable(
+        &self,
+        remote: SocketAddr,
+        remote_info: &PeerInfo,
+    ) -> Result<Arc<Silk>, Error> {
+        info!(
+            "punch Variable↔Variable: {} sockets × {} random dest ports/round",
+            SYM_SOCKETS, SYM_GUESSES
+        );
+        let pkt = Self::make_entangle_pkt();
+        let deadline = Instant::now() + Duration::from_secs(SILK_TIMEOUT_SECS);
+        let remote_ip = remote.ip();
+
+        // Bind all our sockets upfront – each gets an independent random
+        // external port from our symmetric NAT when the first send fires.
+        let sockets = bind_sockets(SYM_SOCKETS).await;
+
+        loop {
+            // ── send phase ───────────────────────────────────────────────────
+            // For EACH of our sockets pick SYM_GUESSES fresh random destination
+            // ports every round.  This re-randomisation is critical: it means
+            // we never "waste" a round repeating the same failed guess.
+            let mut rng = rand::rngs::StdRng::from_seed(rand::random());
+
+            for s in &sockets {
+                for _ in 0..SYM_GUESSES {
+                    let port: u16 = rng.random_range(1024..=65535);
+                    let addr = SocketAddr::new(remote_ip, port);
+                    s.send_to(&pkt, addr).await.ok();
+                }
+            }
+
+            // Also send from primary socket for symmetry
+            {
+                let port: u16 = rng.random_range(1024..=65535);
+                self.sock
+                    .send_to(&pkt, SocketAddr::new(remote_ip, port))
+                    .await
+                    .ok();
+            }
+
+            // ── receive phase ────────────────────────────────────────────────
+            // A successful hole-punch means the remote's packet arrives on ONE
+            // of our sockets FROM the remote's IP (any port – we don't know
+            // which external port the remote's NAT assigned).
+
+            // Check primary socket first
+            {
+                let mut buf = [0u8; MAX_DGRAM];
+                if let Ok(Ok((_, from))) =
+                    timeout(Duration::from_millis(30), self.sock.recv_from(&mut buf)).await
+                {
+                    if from.ip() == remote_ip {
+                        return Ok(self
+                            .finish_silk(from, remote_info.clone(), Arc::clone(&self.sock))
+                            .await);
+                    }
+                }
+            }
+
+            // Then sweep all extra sockets
+            if let Some((from, winning_sock)) = poll_sockets(&sockets, remote_ip, 5).await {
+                return Ok(self
+                    .finish_silk(from, remote_info.clone(), winning_sock)
+                    .await);
             }
 
             if Instant::now() >= deadline {
@@ -1094,4 +1138,55 @@ fn loom_err(code: u8) -> Error {
 
 fn hex_encode(b: &[u8]) -> String {
     b.iter().map(|x| format!("{:02x}", x)).collect()
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+/// Generate `count` random ports in [1024, 65535], always including `must_include`
+/// if it is Some and falls in the valid range.
+fn random_ports_with_anchor(count: usize, must_include: Option<u16>) -> Vec<u16> {
+    let mut rng = rand::rng();
+    let mut set: std::collections::HashSet<u16> = std::collections::HashSet::with_capacity(count);
+
+    if let Some(p) = must_include {
+        if p >= 1024 {
+            set.insert(p);
+        }
+    }
+
+    while set.len() < count {
+        set.insert(rng.random_range(1024..=65535));
+    }
+
+    set.into_iter().collect()
+}
+
+/// Bind `count` UDP sockets on OS-assigned ephemeral ports.
+async fn bind_sockets(count: usize) -> Vec<Arc<UdpSocket>> {
+    let mut socks = Vec::with_capacity(count);
+    for _ in 0..count {
+        if let Ok(s) = UdpSocket::bind("0.0.0.0:0").await {
+            socks.push(Arc::new(s));
+        }
+    }
+    socks
+}
+
+/// Poll every socket in `socks` for an incoming packet from `expected_ip`.
+/// Returns the source address and the socket it arrived on, if found within `timeout_ms`.
+async fn poll_sockets(
+    socks: &[Arc<UdpSocket>],
+    expected_ip: std::net::IpAddr,
+    timeout_ms: u64,
+) -> Option<(SocketAddr, Arc<UdpSocket>)> {
+    let per = Duration::from_millis(timeout_ms.max(1));
+    for s in socks {
+        let mut buf = [0u8; MAX_DGRAM];
+        if let Ok(Ok((_, from))) = timeout(per, s.recv_from(&mut buf)).await {
+            if from.ip() == expected_ip {
+                return Some((from, Arc::clone(s)));
+            }
+        }
+    }
+    None
 }

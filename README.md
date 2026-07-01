@@ -113,15 +113,15 @@ For complete examples, see the [`examples/`](examples/) directory.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Loom Server                             │
-│  (UDP ports 27531 + 27532, Sled DB, X25519 key pair)          │
+│                        Loom Server                              │
+│  (UDP ports 27531 + 27532, Sled DB, X25519 key pair)            │
 │                                                                 │
-│  • Registers peers (10 min TTL)                                │
-│  • Detects NAT type (Fixed vs Variable via dual ports)         │
-│  • Manages networks (public/private)                           │
-│  • Forwards Spin requests + checks filters                     │
-│  • Relays private network join approvals                       │
-│  • GC every 60s to remove expired records                      │
+│  • Registers peers (10 min TTL)                                 │
+│  • Detects NAT type (Fixed vs Variable via dual ports)          │
+│  • Manages networks (public/private)                            │
+│  • Forwards Spin requests + checks filters                      │
+│  • Relays private network join approvals                        │
+│  • GC every 60s to remove expired records                       │
 └─────────────────────────────────────────────────────────────────┘
                │                          │
           Encrypted UDP              Encrypted UDP
