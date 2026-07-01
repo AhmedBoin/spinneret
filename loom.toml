@@ -26,3 +26,17 @@ db_path = "./spinneret.db"
 # If omitted, an ephemeral key is generated on each restart.
 # Generate one with:  python3 -c "import os; print(os.urandom(32).hex())"
 # private_key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+
+# cargo run --example concurrent_spin
+# cargo run --example filter_demo
+# cargo run --example filter_off
+# cargo run --example join_timeout
+# cargo run --example large_data
+# cargo run --example multi_peer_network
+# cargo run --example nat_detect
+# cargo run --example network_demo
+# cargo run --example network_info_non_member
+# cargo run --example private_network_advanced
+# cargo run --example tangle_without_register
+# cargo run --example two_peers two_peers_network

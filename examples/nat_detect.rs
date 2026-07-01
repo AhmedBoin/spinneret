@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use tracing::info;
 
 /// Replace with the hex-encoded public key printed by your Loom server.
-const LOOM_PUB_HEX: &str = "7f0d4a53e547d3ed980869c8cf6ca4c9065af1313553717b6eb2b4cd3ac6744f";
+const LOOM_PUB_HEX: &str = "35c45b4c21e6140ce0ebf584232539ae232770880bd0acd70af3cdb18a54870a";
 
 /// Loom server IP address.
 const LOOM_IP: &str = "129.80.223.49";
